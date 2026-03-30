@@ -88,7 +88,7 @@ else:
     if common_data["show_answer"]:
         st.success(f"### ✅ ОТВЕТ: {common_data['answer']}")
 
-    # ИГРОКИ И ВВОД ОТВЕТОВ
+    # --- СЕТКА ИГРОКОВ ---
     players = common_data["players"]
     cols = st.columns(len(players))
     for i, (name, stack) in enumerate(players.items()):
@@ -96,11 +96,30 @@ else:
             st.metric(name, stack)
             
             if is_admin:
-                bet = st.number_input("Ставка", key=f"b_{name}", step=10)
-                if st.button("В банк", key=f"btn_{name}"):
+                bet = st.number_input("Ставка", key=f"bet_{name}", step=10)
+                if st.button(f"В банк", key=f"btn_{name}"):
                     common_data["players"][name] -= bet
                     common_data["bank"] += bet
                     st.rerun()
+            
+            # ЛОГИКА ДЛЯ ИГРОКА:
+            elif st.session_state.my_role == name:
+                current_answer = common_data["player_answers"].get(name, "")
+                
+                if current_answer != "":
+                    # Если ответ уже есть — просто показываем его без возможности правки
+                    st.success(f"**Ваш ответ принят:**\n\n{current_answer}")
+                    st.caption("Ожидайте следующий вопрос")
+                else:
+                    # Если ответа еще нет — показываем поле ввода
+                    ans_val = st.text_input("Ваш ответ", key=f"input_{name}")
+                    if st.button("ОТПРАВИТЬ", key=f"send_{name}"):
+                        if ans_val.strip() != "":
+                            common_data["player_answers"][name] = ans_val
+                            st.toast("Ответ зафиксирован!")
+                            st.rerun()
+                        else:
+                            st.warning("Введите хоть что-нибудь")
             
             # Сверяем имя из ЛИЧНОЙ памяти браузера
             elif st.session_state.my_name == name:
