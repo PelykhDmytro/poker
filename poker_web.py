@@ -64,14 +64,23 @@ else:
 
     if is_admin:
         st.divider()
-        st.subheader("🏆 Завершение раздачи")
-        win_col1, win_col2 = st.columns([2, 1])
-        with win_col1:
-            winner = st.selectbox("Кто выиграл?", list(players.keys()))
-        with win_col2:
-            if st.button("ОТДАТЬ ВЕСЬ БАНК"):
-                st.session_state.poker_data["players"][winner] += st.session_state.poker_data["bank"]
+    st.subheader("🏆 Завершение раздачи")
+    
+    if is_admin:
+        # Выбор нескольких победителей для сплит-пота
+        winners = st.multiselect("Выберите победителей (одного или нескольких):", list(players.keys()))
+        
+        if winners:
+            split_amount = st.session_state.poker_data['bank'] // len(winners)
+            st.warning(f"Каждый получит по {split_amount} 💰")
+            
+            if st.button("РАЗДЕЛИТЬ БАНК МЕЖДУ НИМИ"):
+                for w in winners:
+                    st.session_state.poker_data["players"][w] += split_amount
+                
+                # Остаток от деления (если банк был нечетным) уходит в ноль или следующему банку
                 st.session_state.poker_data["bank"] = 0
+                st.success("Банк успешно разделен!")
                 st.rerun()
 
         if st.sidebar.button("🔄 Сбросить и сменить имена"):
