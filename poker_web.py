@@ -50,18 +50,25 @@ else:
             h2 = st.text_input("Подсказка №2", value=common_data["hint_2"], key="h2_in")
             ans = st.text_input("ПРАВИЛЬНЫЙ ОТВЕТ", value=common_data["answer"], key="ans_in")
             
-            c1, c2 = st.columns(2)
-            if c1.button("📢 ОБНОВИТЬ ВОПРОС"):
-                common_data.update({"question": q, "hint_1": h1, "hint_2": h2, "answer": ans, "show_answer": False, "player_answers": {n: "" for n in common_data["players"]}})
-                st.rerun()
-            if c2.button("👁️ ПОКАЗАТЬ ОТВЕТ ВСЕМ"):
-                common_data.update({"answer": ans, "show_answer": True})
+            col1, col2, col3 = st.columns(3)
+            
+            if col1.button("📢 НОВЫЙ ВОПРОС (ОЧИСТИТЬ ВСЁ)"):
+                common_data.update({
+                    "question": q, "hint_1": h1, "hint_2": h2, "answer": ans, 
+                    "show_answer": False, "player_answers": {n: "" for n in common_data["players"]}
+                })
                 st.rerun()
 
-        st.subheader("📩 Ответы игроков")
-        ans_cols = st.columns(len(common_data["players"]))
-        for i, (name, p_ans) in enumerate(common_data["player_answers"].items()):
-            ans_cols[i].markdown(f"**{name}:**\n{p_ans if p_ans else '---'}")
+            if col2.button("💡 ОБНОВИТЬ ПОДСКАЗКИ (СОХРАНИТЬ ОТВЕТЫ)"):
+                common_data.update({
+                    "question": q, "hint_1": h1, "hint_2": h2, "answer": ans
+                })
+                st.success("Подсказки добавлены, ответы игроков сохранены!")
+                st.rerun()
+                
+            if col3.button("👁️ ПОКАЗАТЬ ОТВЕТ ВСЕМ"):
+                common_data.update({"answer": ans, "show_answer": True})
+                st.rerun()
 
     # ТАБЛО (ВИДЯТ ВСЕ)
     st.markdown(f"""
