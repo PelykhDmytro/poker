@@ -77,8 +77,19 @@ else:
                 st.rerun()
 
         st.subheader("📩 Ответы игроков")
+        # Создаем контейнер с крупным текстом
         for name, p_ans in common_data["player_answers"].items():
-            st.write(f"**{name}:** {p_ans if p_ans else '⏳ ждем...'}")
+            if p_ans:
+                # Крупный текст для уже пришедших ответов
+                st.markdown(f"""
+                    <div style="background-color: #e1f5fe; padding: 10px; border-radius: 5px; margin-bottom: 5px; border-left: 5px solid #0288d1;">
+                        <span style="font-size: 22px; font-weight: bold; color: #01579b;">{name}:</span> 
+                        <span style="font-size: 26px; color: #000;">{p_ans}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                # Текст для тех, кто еще думает
+                st.markdown(f"<span style='font-size: 20px; color: gray;'>{name}: ⏳ ждем...</span>", unsafe_allow_html=True)
 
     # --- ТАБЛО ---
     st.markdown(f"""
