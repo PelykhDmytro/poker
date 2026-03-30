@@ -2,7 +2,7 @@ import streamlit as st
 
 st.set_page_config(page_title="POKER QUIZ", layout="wide")
 
-# --- ГЛОБАЛЬНЫЕ СТИЛИ (CSS) ---
+# --- СТИЛИ (CSS) ---
 st.markdown("""
 <style>
     .stApp { background-color: #0a0a0a; }
@@ -38,10 +38,9 @@ st.markdown("""
         padding: 15px;
         text-align: center;
         box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        margin-bottom: 10px;
     }
     
-    /* Текст в инпутах — белый на темном фоне */
+    /* Исправление видимости текста в полях */
     input {
         color: white !important;
         background-color: #262730 !important;
@@ -57,118 +56,137 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- ЛОГИКА ДАННЫХ ---
+# --- ИНИЦИАЛИЗАЦИЯ ДАННЫХ ---
 @st.cache_resource
 def init_data():
     return {
-        "players": {}, "bank": 0, "game_started": False,
-        "question": "", "hint_1": "", "hint_2": "", "answer": "", 
-        "show_answer": False, "player_answers": {}
+        "players": {}, 
+        "bank": 0, 
+        "game_started": False,
+        "question": "", 
+        "hint_1": "", 
+        "hint_2": "", 
+        "answer": "", 
+        "show_answer": False, 
+        "player_answers": {}
     }
 
 data = init_data()
 
-# --- ПАНЕЛЬ ВХОДА (SIDEBAR) ---
+# --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.title("⚙️ Настройки")
     pwd = st.text_input("Пароль ведущего", type="password")
     is_admin = (pwd == "1234")
     
     if data["game_started"] and not is_admin:
-        if "my_role" not in st.session_state: st.session_state.my_role = "---"
-        st.session_state.my_role = st.selectbox("Ваше имя за столом:", ["---"] + list(data["players"].keys()))
+        if "my_role" not in st.session_state: 
+            st.session_state.my_role = "---"
+        st.session_state.my_role = st.selectbox("Ваше имя:", ["---"] + list(data["players"].keys()))
 
-    if is_admin and st.button("🚨 СБРОСИТЬ ВСЁ"):
+    if is_admin and st.button("🚨 ПОЛНЫЙ СБРОС"):
         data.update({"players": {}, "bank": 0, "game_started": False, "player_answers": {}})
         st.rerun()
 
-# --- ОСНОВНОЙ КОНТЕНТ ---
+# --- ЛОГИКА ЭКРАНОВ ---
 if not data["game_started"]:
     st.title("🃏 QUIZ POKER ROOM")
     if is_admin:
-        n = st.slider("Количество мест", 2, 8, 2)
-        names = [st.text_input(f"Игрок {i+1}", key=f"s_{i}") for i in range(n)]
+        n = st.slider("Мест за столом", 2, 6, 2)
+        names = [st.text_input(f"Игрок {i+1}", key=f"setup_{i}") for i in range(n)]
         if st.button("ОТКРЫТЬ СТОЛ"):
-            valid = {n: 1000 for n in names if n}
-            data.update({"players": valid, "player_answers": {n: "" for n in valid}, "game_started": True})
+            valid_p = {name: 1000 for name in names if name}
+            data.update({
+                "players": valid_p, 
+                "player_answers": {n: "" for n in valid_p}, 
+                "game_started": True
+            })
             st.rerun()
     else:
-        st.info("Стол еще не открыт. Ожидайте крупье...")
+        st.info("Ожидание крупье...")
 else:
-    # ИНТЕРФЕЙС ВЕДУЩЕГО (УПРАВЛЕНИЕ ТУРОМ)
+    # ПАНЕЛЬ УПРАВЛЕНИЯ (ТОЛЬКО АДМИН)
     if is_admin:
         with st.expander("🛠 УПРАВЛЕНИЕ ТУРОМ", expanded=False):
-            q_val = st.text_area("Вопрос", value=data["question"])
-            h1_val = st.text_input("Подсказка 1", value=data["hint_1"])
-            h2_val = st.text_input("Подсказка 2", value=data["hint_2"])
-            ans_val = st.text_input("Верный ответ", value=data["answer"])
-            if st.button("ОБНОВИТЬ ВОПРОС НА СТОЛЕ"):
-                data.update({"question": q_val, "hint_1": h1_val, "hint_2": h2_val, "answer": ans_val, "show_answer": False, "player_answers": {n: "" for n in data["players"]}})
+            q_in = st.text_area("Текст вопроса", value=data["question"])
+            h1_in = st.text_input("Подсказка 1", value=data["hint_1"])
+            h2_in = st.text_input("Подсказка 2", value=data["hint_2"])
+            a_in = st.text_input("Правильный ответ", value=data["answer"])
+            if st.button("РАЗДАТЬ ВОПРОС"):
+                data.update({
+                    "question": q_in, "hint_1": h1_in, "hint_2": h2_in, 
+                    "answer": a_in, "show_answer": False, 
+                    "player_answers": {n: "" for n in data["players"]}
+                })
                 st.rerun()
-            if st.button("ПОКАЗАТЬ ОТВЕТ ВСЕМ"):
+            if st.button("ОТКРЫТЬ ОТВЕТ"):
                 data.update({"show_answer": True})
                 st.rerun()
 
-    # ВИЗУАЛИЗАЦИЯ СТОЛА (HTML БЕЗ ОШИБОК)
+    # ИГРОВОЙ СТОЛ
     st.markdown(f"""
     <div class="poker-table">
         <div class="pot-text">POT</div>
         <div style="font-size: 48px; color: #fff; font-weight: bold; margin-bottom: 20px;">$ {data['bank']}</div>
         <div class="table-card">
-            <div style="color: #fbbf24; font-weight: bold; margin-bottom: 10px;">QUESTION</div>
-            <div style="font-size: 28px; font-weight: bold; line-height: 1.2;">{data['question'] if data['question'] else 'Waiting for host...'}</div>
+            <div style="color: #fbbf24; font-weight: bold; margin-bottom: 10px;">ВОПРОС</div>
+            <div style="font-size: 26px; font-weight: bold;">{data['question'] if data['question'] else 'Ждем вопрос...'}</div>
             <div style="margin-top: 15px; color: #aaa; font-size: 14px;">
-                HINT 1: {data['hint_1']} | HINT 2: {data['hint_2']}
+                {data['hint_1']} | {data['hint_2']}
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     if data["show_answer"]:
-        st.success(f"### ✅ ПРАВИЛЬНЫЙ ОТВЕТ: {data['answer']}")
+        st.success(f"### ✅ ОТВЕТ: {data['answer']}")
 
-    # ОТОБРАЖЕНИЕ ИГРОКОВ (ИСПРАВЛЕНА СИНТАКСИЧЕСКАЯ ОШИБКА)
-    p_list = list(data["players"].keys())
-    if p_list:
-        cols = st.columns(len(p_list))
-        for i, name in enumerate(p_list):
-            stack = data["players"][name]
+    # ИГРОКИ (СТОЛБЦЫ)
+    p_names = list(data["players"].keys())
+    if p_names:
+        cols = st.columns(len(p_names))
+        for i, name in enumerate(p_names):
             with cols[i]:
+                # Карточка игрока
                 st.markdown(f"""
                 <div class="player-box">
                     <div style="color: #888; font-size: 14px;">{name}</div>
-                    <div style="color: #4ade80; font-size: 26px; font-weight: bold;">{stack}</div>
+                    <div style="color: #4ade80; font-size: 24px; font-weight: bold;">{data['players'][name]}</div>
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Кнопки для админа
                 if is_admin:
-                    b_val = st.number_input("Bet", key=f"bet_{name}", step=50, label_visibility="collapsed")
-                    if st.button("BET", key=f"btn_{name}"):
-                        data["players"][name] -= b_val
-                        data["bank"] += b_val
+                    bet = st.number_input("Ставка", key=f"b_{name}", step=50, label_visibility="collapsed")
+                    if st.button("В БАНК", key=f"btn_{name}"):
+                        data["players"][name] -= bet
+                        data["bank"] += bet
                         st.rerun()
+                
+                # Кнопка для игрока
                 elif st.session_state.get("my_role") == name:
-                    cur_ans = data["player_answers"].get(name, "")
-                    if cur_ans:
-                        st.markdown(f"<div style='color: #fbbf24; text-align:center;'>Ответ принят:<br><b>{cur_ans}</b></div>", unsafe_allow_html=True)
+                    ans_val = data["player_answers"].get(name, "")
+                    if ans_val:
+                        st.markdown(f"<div style='color:#fbbf24; text-align:center;'>Принято: <b>{ans_val}</b></div>", unsafe_allow_html=True)
                     else:
-                        u_in = st.text_input("Ваш ответ", key=f"in_{name}", label_visibility="collapsed")
-                        # ВОЗВРАЩЕНА КНОПКА "ОТПРАВИТЬ"
-                        if st.button("ОТПРАВИТЬ", key=f"snd_{name}"):
+                        u_in = st.text_input("Ответ", key=f"in_{name}", label_visibility="collapsed")
+                        if st.button("ОТПРАВИТЬ", key=f"send_{name}"):
                             if u_in:
                                 data["player_answers"][name] = u_in
                                 st.rerun()
 
-    # ПАНЕЛЬ ВЕДУЩЕГО (МОНИТОР ОТВЕТОВ)
+    # МОНИТОР ОТВЕТОВ (ДЛЯ АДМИНА)
     if is_admin:
         st.divider()
-        st.subheader("📝 Монитор ответов")
+        st.subheader("📝 Ответы игроков")
         for n, a in data["player_answers"].items():
-            if a:
-                st.markdown(f"""
-                <div style='background: #1a1a1a; padding: 10px; border-radius: 5px; margin-bottom: 5px; border-left: 5px solid #fbbf24;'>
-                    <span style='color: #888;'>{n}:</span> <span style='font-size: 22px; color: #fff; font-weight: bold;'>{a}</span>
-                </div>
-                """, unsafe_allow_html=True)
+            if a: st.write(f"**{n}:** {a}")
         
-        winners =
+        winners = st.multiselect("Кто забирает банк?", p_names)
+        if winners and st.button("🎉 ВЫПЛАТИТЬ"):
+            share = data['bank'] // len(winners)
+            for w in winners: data["players"][w] += share
+            data["bank"] = 0
+            st.rerun()
+    else:
+        st.button("🔄 ОБНОВИТЬ")
