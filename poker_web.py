@@ -9,7 +9,7 @@ def get_common_data():
         "players": {}, "bank": 0, "game_started": False,
         "question": "", "hint_1": "", "hint_2": "", "answer": "", 
         "show_answer": False, 
-        "show_all_answers": False,  # НОВЫЙ ФЛАГ: показывать ли ответы всем игрокам
+        "show_all_answers": False, 
         "player_answers": {}
     }
 
@@ -67,21 +67,21 @@ else:
                 common_data.update({
                     "question": q, "hint_1": h1, "hint_2": h2, "answer": ans, 
                     "show_answer": False, 
-                    "show_all_answers": False, # СБРОС: скрываем ответы при новом вопросе
+                    "show_all_answers": False, 
                     "player_answers": {n: "" for n in common_data["players"]}
                 })
                 st.rerun()
             if c2.button("💡 ОБНОВИТЬ ПОДСКАЗКИ"):
                 common_data.update({"question": q, "hint_1": h1, "hint_2": h2, "answer": ans})
                 st.rerun()
-            if c3.button("👁️ ВСКРЫТЬ ОТВЕТЫ"): # КНОПКА ДЛЯ ВЕДУЩЕГО
+            if c3.button("👁️ ВСКРЫТЬ ОТВЕТЫ"): 
                 common_data["show_all_answers"] = True
                 st.rerun()
             if c4.button("✅ ПРАВИЛЬНЫЙ ОТВЕТ"):
                 common_data.update({"answer": ans, "show_answer": True})
                 st.rerun()
 
-        st.subheader("📩 Ответы игроков (видит только ведущий)")
+        st.subheader("📩 Ответы игроков")
         for name, p_ans in common_data["player_answers"].items():
             if p_ans:
                 st.markdown(f"**{name}:** {p_ans}")
@@ -100,7 +100,6 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # СПИСОК ВСЕХ ОТВЕТОВ ДЛЯ ИГРОКОВ (появляется после нажатия кнопки ведущим)
     if common_data["show_all_answers"]:
         st.subheader("📢 Ответы всех участников:")
         ans_cols = st.columns(3)
@@ -130,7 +129,8 @@ else:
             elif st.session_state.get("my_role") == name:
                 saved_ans = common_data["player_answers"].get(name, "")
                 if saved_ans != "":
-                    st.success(f"**Ваш ответ записан**")
+                    # ВОЗВРАЩЕНО: Игрок видит свой ответ полностью
+                    st.success(f"**Ваш ответ:**\n\n{saved_ans}")
                 else:
                     val = st.text_input("Ваш ответ", key=f"input_{name}")
                     if st.button("ОТПРАВИТЬ", key=f"send_{name}"):
@@ -146,7 +146,6 @@ else:
             split = common_data['bank'] // len(winners)
             for w in winners: common_data["players"][w] += split
             common_data["bank"] = 0
-            # При раздаче банка тоже скрываем ответы и обнуляем их
             common_data.update({
                 "question": "", "hint_1": "", "hint_2": "", "answer": "", 
                 "show_answer": False, "show_all_answers": False,
