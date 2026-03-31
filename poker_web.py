@@ -8,12 +8,14 @@ def get_common_data():
     return {
         "players": {}, "bank": 0, "game_started": False,
         "question": "", "hint_1": "", "hint_2": "", "answer": "", 
-        "show_answer": False, "player_answers": {}
+        "show_answer": False, 
+        "show_all_answers": False,  # НОВЫЙ ФЛАГ: показывать ли ответы всем игрокам
+        "player_answers": {}
     }
 
 common_data = get_common_data()
 
-# 2. ИНИЦИАЛИЗАЦИЯ ЛИЧНОЙ ПАМЯТИ (Защита от ошибок AttributeError)
+# 2. ИНИЦИАЛИЗАЦИЯ ЛИЧНОЙ ПАМЯТИ
 if "my_role" not in st.session_state:
     st.session_state.my_role = "---"
 
@@ -31,7 +33,6 @@ if common_data["game_started"] and not is_admin:
 
 st.title("🧠 Интеллектуальное Табло")
 
-# Кнопка обновления для игроков (всегда видна, если игра идет)
 if common_data["game_started"] and not is_admin:
     if st.button("🔄 ОБНОВИТЬ ТАБЛО"):
         st.rerun()
@@ -61,35 +62,31 @@ else:
             h2 = st.text_input("Подсказка №2", value=common_data["hint_2"])
             ans = st.text_input("ПРАВИЛЬНЫЙ ОТВЕТ", value=common_data["answer"])
             
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3, c4 = st.columns(4)
             if c1.button("📢 НОВЫЙ ВОПРОС"):
                 common_data.update({
                     "question": q, "hint_1": h1, "hint_2": h2, "answer": ans, 
                     "show_answer": False, 
-                    "player_answers": {n: "" for n in common_data["players"]} # Очистка ответов
+                    "show_all_answers": False, # СБРОС: скрываем ответы при новом вопросе
+                    "player_answers": {n: "" for n in common_data["players"]}
                 })
                 st.rerun()
             if c2.button("💡 ОБНОВИТЬ ПОДСКАЗКИ"):
                 common_data.update({"question": q, "hint_1": h1, "hint_2": h2, "answer": ans})
                 st.rerun()
-            if c3.button("👁️ ПОКАЗАТЬ ОТВЕТ"):
+            if c3.button("👁️ ВСКРЫТЬ ОТВЕТЫ"): # КНОПКА ДЛЯ ВЕДУЩЕГО
+                common_data["show_all_answers"] = True
+                st.rerun()
+            if c4.button("✅ ПРАВИЛЬНЫЙ ОТВЕТ"):
                 common_data.update({"answer": ans, "show_answer": True})
                 st.rerun()
 
-        st.subheader("📩 Ответы игроков")
-        # Создаем контейнер с крупным текстом
+        st.subheader("📩 Ответы игроков (видит только ведущий)")
         for name, p_ans in common_data["player_answers"].items():
             if p_ans:
-                # Крупный текст для уже пришедших ответов
-                st.markdown(f"""
-                    <div style="background-color: #e1f5fe; padding: 10px; border-radius: 5px; margin-bottom: 5px; border-left: 5px solid #0288d1;">
-                        <span style="font-size: 22px; font-weight: bold; color: #01579b;">{name}:</span> 
-                        <span style="font-size: 26px; color: #000;">{p_ans}</span>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"**{name}:** {p_ans}")
             else:
-                # Текст для тех, кто еще думает
-                st.markdown(f"<span style='font-size: 20px; color: gray;'>{name}: ⏳ ждем...</span>", unsafe_allow_html=True)
+                st.markdown(f"*{name}: ⏳ ждем...*")
 
     # --- ТАБЛО ---
     st.markdown(f"""
@@ -102,6 +99,14 @@ else:
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # СПИСОК ВСЕХ ОТВЕТОВ ДЛЯ ИГРОКОВ (появляется после нажатия кнопки ведущим)
+    if common_data["show_all_answers"]:
+        st.subheader("📢 Ответы всех участников:")
+        ans_cols = st.columns(3)
+        for idx, (name, p_ans) in enumerate(common_data["player_answers"].items()):
+            with ans_cols[idx % 3]:
+                st.info(f"**{name}**: {p_ans if p_ans else '---'}")
 
     if common_data["show_answer"]:
         st.success(f"### ✅ ОТВЕТ: {common_data['answer']}")
@@ -122,16 +127,11 @@ else:
                     common_data["bank"] += bet
                     st.rerun()
             
-            # Логика для конкретного игрока
             elif st.session_state.get("my_role") == name:
-                # Проверяем, есть ли уже ответ в базе
                 saved_ans = common_data["player_answers"].get(name, "")
-                
                 if saved_ans != "":
-                    # ЗАМОРОЗКА: Если ответ есть, просто показываем его
-                    st.success(f"**Ваш ответ:**\n\n{saved_ans}")
+                    st.success(f"**Ваш ответ записан**")
                 else:
-                    # Если ответа нет, показываем ввод
                     val = st.text_input("Ваш ответ", key=f"input_{name}")
                     if st.button("ОТПРАВИТЬ", key=f"send_{name}"):
                         if val.strip():
@@ -146,9 +146,14 @@ else:
             split = common_data['bank'] // len(winners)
             for w in winners: common_data["players"][w] += split
             common_data["bank"] = 0
-            common_data.update({"question": "", "hint_1": "", "hint_2": "", "answer": "", "show_answer": False, "player_answers": {n: "" for n in players}})
+            # При раздаче банка тоже скрываем ответы и обнуляем их
+            common_data.update({
+                "question": "", "hint_1": "", "hint_2": "", "answer": "", 
+                "show_answer": False, "show_all_answers": False,
+                "player_answers": {n: "" for n in players}
+            })
             st.rerun()
         
         if st.sidebar.button("🔄 СБРОС ВСЕГО"):
-            common_data.update({"players": {}, "bank": 0, "game_started": False, "player_answers": {}})
+            common_data.update({"players": {}, "bank": 0, "game_started": False, "player_answers": {}, "show_all_answers": False})
             st.rerun()
