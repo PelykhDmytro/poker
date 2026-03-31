@@ -41,15 +41,25 @@ if not common_data["game_started"]:
     if is_admin:
         st.subheader("Настройка участников")
         num_players = st.slider("Количество игроков", 2, 10, 2)
-        p_names = [st.text_input(f"Имя {i+1}", key=f"n_{i}") for i in range(num_players)]
+        
+        # Собираем имена в список
+        p_names = []
+        for i in range(num_players):
+            name = st.text_input(f"Имя {i+1}", key=f"n_{i}")
+            if name.strip(): # Добавляем только если имя не пустое
+                p_names.append(name.strip())
+        
         if st.button("🚀 НАЧАТЬ ИГРУ"):
-            names_dict = {n: 1000 for n in p_names if n}
-            common_data.update({
-                "players": names_dict,
-                "player_answers": {n: "" for n in names_dict},
-                "game_started": True
-            })
-            st.rerun()
+            if len(p_names) < 2: # Проверка: минимум 2 игрока для игры
+                st.error("Введите хотя бы 2 имени игроков, чтобы начать!")
+            else:
+                names_dict = {n: 1000 for n in p_names}
+                common_data.update({
+                    "players": names_dict,
+                    "player_answers": {n: "" for n in names_dict},
+                    "game_started": True
+                })
+                st.rerun()
     else:
         st.info("Ждем Ведущего...")
 
