@@ -2,12 +2,13 @@ import streamlit as st
 
 st.set_page_config(page_title="Интеллектуальная Игра", layout="wide")
 
-# 1. ОБЩАЯ ПАМЯТЬ (Хранится на сервере для всех пользователей)
+# 1. ОБЩАЯ ПАМЯТЬ
 @st.cache_resource
 def get_common_data():
     return {
         "players": {}, 
         "bank": 0, 
+        "bets_in_round": {},  # Кто сколько вложил именно в этом раунде
         "game_started": False,
         "question": "", 
         "hint_1": "", 
@@ -20,7 +21,6 @@ def get_common_data():
 
 common_data = get_common_data()
 
-# 2. ИНИЦИАЛИЗАЦИЯ ЛИЧНОЙ ПАМЯТИ (Для каждого вкладки браузера)
 if "my_role" not in st.session_state:
     st.session_state.my_role = "---"
 
@@ -29,28 +29,24 @@ st.sidebar.header("⚙️ Вход")
 admin_pwd = st.sidebar.text_input("Пароль Ведущего", type="password")
 is_admin = (admin_pwd == "1234")
 
-# Кнопка аварийного сброса (Всегда доступна ведущему)
 if is_admin:
     st.sidebar.divider()
-    if st.sidebar.button("🚨 ПОЛНЫЙ СБРОС ИГРЫ", help="Сбросить всех игроков и очистить банк"):
+    if st.sidebar.button("🚨 ПОЛНЫЙ СБРОС ИГРЫ"):
         common_data.update({
-            "players": {}, "bank": 0, "game_started": False, 
+            "players": {}, "bank": 0, "bets_in_round": {}, "game_started": False, 
             "player_answers": {}, "show_all_answers": False,
             "question": "", "hint_1": "", "hint_2": "", "answer": "", "show_answer": False
         })
         st.rerun()
 
-# Выбор имени для игрока
 if common_data["game_started"] and not is_admin:
     st.session_state.my_role = st.sidebar.selectbox(
         "Выберите ваше имя:", 
-        ["---"] + list(common_data["players"].keys()),
-        index=0 if st.session_state.my_role not in common_data["players"] else list(common_data["players"].keys()).index(st.session_state.my_role) + 1
+        ["---"] + list(common_data["players"].keys())
     )
 
 st.title("🧠 Интеллектуальное Табло")
 
-# --- КНОПКА ОБНОВЛЕНИЯ (Видна игрокам всегда) ---
 if not is_admin:
     if st.button("🔄 ОБНОВИТЬ ТАБЛО"):
         st.rerun()
@@ -60,21 +56,19 @@ if not common_data["game_started"]:
     if is_admin:
         st.subheader("Настройка участников")
         num_players = st.slider("Количество игроков", 2, 10, 2)
-        
-        # Сбор имен с фильтрацией пустых полей
         p_names = []
         for i in range(num_players):
             name = st.text_input(f"Имя {i+1}", key=f"n_{i}").strip()
-            if name:
-                p_names.append(name)
+            if name: p_names.append(name)
         
         if st.button("🚀 НАЧАТЬ ИГРУ"):
             if len(p_names) < 2:
-                st.error("Введите хотя бы 2 имени участников!")
+                st.error("Введите хотя бы 2 имени!")
             else:
                 names_dict = {n: 1000 for n in p_names}
                 common_data.update({
                     "players": names_dict,
+                    "bets_in_round": {n: 0 for n in names_dict},
                     "player_answers": {n: "" for n in names_dict},
                     "game_started": True
                 })
@@ -84,7 +78,6 @@ if not common_data["game_started"]:
 
 # --- ИГРОВОЙ ПРОЦЕСС ---
 else:
-    # ПАНЕЛЬ УПРАВЛЕНИЯ ВЕДУЩЕГО
     if is_admin:
         with st.expander("📝 УПРАВЛЕНИЕ ТУРОМ", expanded=True):
             q = st.text_area("Текст вопроса", value=common_data["question"])
@@ -97,7 +90,8 @@ else:
                 common_data.update({
                     "question": q, "hint_1": h1, "hint_2": h2, "answer": ans, 
                     "show_answer": False, "show_all_answers": False, 
-                    "player_answers": {n: "" for n in common_data["players"]}
+                    "player_answers": {n: "" for n in common_data["players"]},
+                    "bets_in_round": {n: 0 for n in common_data["players"]} # Сброс ставок раунда
                 })
                 st.rerun()
             if c2.button("💡 ПОДСКАЗКИ"):
@@ -110,14 +104,7 @@ else:
                 common_data.update({"answer": ans, "show_answer": True})
                 st.rerun()
 
-        st.subheader("📩 Ответы игроков (для Ведущего)")
-        for name, p_ans in common_data["player_answers"].items():
-            if p_ans:
-                st.write(f"**{name}:** {p_ans}")
-            else:
-                st.write(f"*{name}: ⏳ думает...*")
-
-    # --- ЦЕНТРАЛЬНОЕ ТАБЛО ---
+    # ТАБЛО ВОПРОСА
     st.markdown(f"""
     <div style="background-color:#f0f2f6; padding:20px; border-radius:10px; border: 2px solid #0e1117; margin-bottom:20px; color:#0e1117">
         <h2 style="text-align:center;">❓ Вопрос</h2>
@@ -129,10 +116,9 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # Отображение всех ответов для всех (когда ведущий вскрыл их)
     if common_data["show_all_answers"]:
-        st.subheader("📢 Ответы всех участников:")
-        ans_cols = st.columns(min(len(common_data["players"]), 3))
+        st.subheader("📢 Ответы участников:")
+        ans_cols = st.columns(min(len(common_data["players"]), 4))
         for idx, (name, p_ans) in enumerate(common_data["player_answers"].items()):
             with ans_cols[idx % len(ans_cols)]:
                 st.info(f"**{name}**: {p_ans if p_ans else '---'}")
@@ -144,47 +130,69 @@ else:
     
     # --- СЕТКА ИГРОКОВ ---
     players = common_data["players"]
-    
-    if not players:
-        st.warning("⚠️ Список игроков пуст. Ведущий, нажми '🚨 ПОЛНЫЙ СБРОС ИГРЫ' слева.")
-    else:
-        cols = st.columns(len(players))
-        for i, (name, stack) in enumerate(players.items()):
-            with cols[i]:
-                st.metric(name, stack)
-                
-                # Интерфейс Ведущего (Ставки)
-                if is_admin:
-                    bet = st.number_input("Ставка", key=f"bet_{name}", step=10)
-                    if st.button(f"В банк", key=f"btn_{name}"):
-                        common_data["players"][name] -= bet
-                        common_data["bank"] += bet
-                        st.rerun()
-                
-                # Интерфейс Игрока (Ввод ответа)
-                elif st.session_state.get("my_role") == name:
-                    saved_ans = common_data["player_answers"].get(name, "")
-                    if saved_ans != "":
-                        st.success(f"**Ваш ответ:**\n\n{saved_ans}")
-                    else:
-                        val = st.text_input("Ваш ответ", key=f"input_{name}")
-                        if st.button("ОТПРАВИТЬ", key=f"send_{name}"):
-                            if val.strip():
-                                common_data["player_answers"][name] = val
-                                st.rerun()
+    cols = st.columns(len(players))
+    for i, (name, stack) in enumerate(players.items()):
+        with cols[i]:
+            # Показываем стек и сколько уже поставлено в этом раунде
+            current_bet = common_data["bets_in_round"].get(name, 0)
+            st.metric(name, f"{stack} 🪙", delta=f"Ставка: {current_bet}" if current_bet > 0 else None)
+            
+            if is_admin:
+                bet = st.number_input("Ставка", key=f"bet_{name}", step=10, min_value=0, max_value=stack)
+                if st.button(f"В банк", key=f"btn_{name}"):
+                    common_data["players"][name] -= bet
+                    common_data["bank"] += bet
+                    common_data["bets_in_round"][name] = common_data["bets_in_round"].get(name, 0) + bet
+                    st.rerun()
+            
+            elif st.session_state.get("my_role") == name:
+                saved_ans = common_data["player_answers"].get(name, "")
+                if saved_ans != "":
+                    st.success(f"Ответ принят")
+                else:
+                    val = st.text_input("Ваш ответ", key=f"input_{name}")
+                    if st.button("ОТПРАВИТЬ", key=f"send_{name}"):
+                        if val.strip():
+                            common_data["player_answers"][name] = val
+                            st.rerun()
 
-    # --- РАЗДАЧА БАНКА ---
-    if is_admin and players:
+    # --- УМНОЕ РАЗДЕЛЕНИЕ БАНКА (SIDE POT LOGIC) ---
+    if is_admin and players and common_data["bank"] > 0:
         st.divider()
-        winners = st.multiselect("Кто победил?", list(players.keys()))
+        st.subheader("🏆 Раздача выигрыша")
+        winners = st.multiselect("Кто ответил правильно?", list(players.keys()))
+        
         if winners and st.button("РАЗДЕЛИТЬ БАНК 🎉"):
-            split = common_data['bank'] // len(winners)
-            for w in winners: common_data["players"][w] += split
+            # Копия ставок для расчетов
+            round_bets = common_data["bets_in_round"].copy()
+            
+            # Сортируем победителей по размеру их ставки (от меньшего к большему)
+            sorted_winners = sorted(winners, key=lambda x: round_bets.get(x, 0))
+            
+            for winner in sorted_winners:
+                w_bet = round_bets.get(winner, 0)
+                if w_bet <= 0: continue
+                
+                # Сколько этот победитель может забрать у каждого игрока за столом
+                pot_from_this_level = 0
+                for p_name in round_bets.keys():
+                    # Берем у каждого не более, чем поставил победитель
+                    contribution = min(round_bets[p_name], w_bet)
+                    pot_from_this_level += contribution
+                    round_bets[p_name] -= contribution
+                
+                # Делим эту часть банка между всеми оставшимися победителями, 
+                # претендующими на этот уровень (кто поставил столько же или больше)
+                eligible_winners = [w for w in winners if common_data["bets_in_round"][w] >= w_bet]
+                share = pot_from_this_level // len(eligible_winners)
+                
+                for w_el in eligible_winners:
+                    common_data["players"][w_el] += share
+                    common_data["bank"] -= share
+
+            # Если после распределения в банке остались "копейки" из-за округления 
+            # или лишние деньги тех, кто поставил больше всех и проиграл — обнуляем или отдаем последнему
             common_data["bank"] = 0
-            # Сброс раунда при делении банка
-            common_data.update({
-                "show_answer": False, "show_all_answers": False,
-                "player_answers": {n: "" for n in players},
-                "question": "", "hint_1": "", "hint_2": "", "answer": ""
-            })
+            common_data["bets_in_round"] = {n: 0 for n in players}
+            st.success("Банк распределен с учетом All-in!")
             st.rerun()
